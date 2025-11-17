@@ -6,7 +6,7 @@ export class Game {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x111111);
 
-    this.camera = new THREE.PerspectiveCamera(60, this.width / this.height, 0.1, 1000);
+    this.camera = new VTHREE.PerspectiveCamera(60, this.width / this.height, 0.1, 1000);
     this.camera.position.set(0, 1.5, 4);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -83,7 +83,6 @@ export class Game {
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const intersects = this.raycaster.intersectObject(this.block);
     if (intersects.length > 0) {
-      // Visual feedback – flash white when carving
       this.block.material.emissive.setHex(0xffffff);
       setTimeout(() => {
         if (this.block?.material) this.block.material.emissive.setHex(0x000000);
@@ -93,7 +92,7 @@ export class Game {
 
   animate = () => {
     requestAnimationFrame(this.animate);
-    this.block.rotation.y += 0.005; // slow idle rotation
+    this.block.rotation.y += 0.005;
     this.renderer.render(this.scene, this.camera);
   };
 
