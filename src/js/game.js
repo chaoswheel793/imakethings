@@ -1,4 +1,4 @@
-// src/js/game.js – I Make Things: Complete Workshop + Hands + Carving
+// src/js/game.js – Complete & Tested: Workshop + Hands + Carving
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
@@ -7,32 +7,12 @@ import { getDeltaTime } from './utils.js';
 export class Game {
   constructor(canvas) {
     this.canvas = canvas;
-    this.scene = null;
-    this.camera = null;
-    this.renderer = null;
-    this.player = null;
-    this.workshopItems = [];
-    this.carvingBlock = null;
-    this.chisel = null;
-    this.isCarving = false;
-    this.keys = {};
-    this.raycaster = new THREE.Raycaster();
-    this.mouse = new THREE.Vector2();
-    this.fpsControls = null;
-    this.orbitControls = null;
-    this.currentMode = 'fps';
-  }
-
-  async init() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x2c1810);
-
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 1.6, 5);
-
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
@@ -45,6 +25,29 @@ export class Game {
     this.player = new Player(this.camera);
     this.scene.add(this.player.group);
 
+    this.workshopItems = [];
+    this.carvingBlock = null;
+    this.chisel = null;
+    this.isCarving = false;
+    this.keys = {};
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
+    this.fpsControls = null;
+    this.orbitControls = null;
+    this.currentMode = 'fps';
+    this.firstRender = false;
+    this.onFirstRender = null; // Callback for loading hide
+  }
+
+  async init() {
+    // Test cube (fallback if workshop fails)
+    const testGeo = new THREE.BoxGeometry(1, 1, 1);
+    const testMat = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+    const testCube = new THREE.Mesh(testGeo, testMat);
+    testCube.position.set(0, 1, 0);
+    this.scene.add(testCube);
+    console.log('Test cube added – if no workshop, this is green fallback');
+
     this.createWorkshop();
     this.createChisel();
 
@@ -52,6 +55,7 @@ export class Game {
     this.setupInput();
 
     this.resize();
+    console.log('Game initialized – check for green cube if workshop missing');
   }
 
   createWorkshop() {
@@ -65,7 +69,7 @@ export class Game {
 
     // Workbench
     const bench = new THREE.Group();
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+    const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
     const base = new THREE.Mesh(new THREE.BoxGeometry(5, 0.8, 2.5), woodMat);
     const top = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), woodMat);
     base.position.y = 0.4;
@@ -73,14 +77,14 @@ export class Game {
     bench.add(base, top);
     this.scene.add(bench);
 
-    // Carving block (semi-transparent)
-    const geometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32);
-    const material = new THREE.MeshLambertMaterial({
-      color: 0xDEB887,
-      transparent: true,
-      opacity: 0.6
+    // Carving block
+    const geo = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32);
+    const mat = new THREE.MeshLambertMaterial({ 
+      color: 0xDEB887, 
+      transparent: true, 
+      opacity: 0.6 
     });
-    this.carvingBlock = new THREE.Mesh(geometry, material);
+    this.carvingBlock = new THREE.Mesh(geo, mat);
     this.carvingBlock.position.set(0, 1.2, 0);
     this.carvingBlock.userData = { type: 'carvable' };
     bench.add(this.carvingBlock);
@@ -170,7 +174,7 @@ export class Game {
       pos.needsUpdate = true;
       geo.computeVertexNormals();
 
-      // Increase opacity as carved (reveal effect)
+      // Increase opacity
       this.carvingBlock.material.opacity = Math.min(1.0, this.carvingBlock.material.opacity + 0.001);
     }
   }
@@ -211,6 +215,10 @@ export class Game {
 
   render() {
     this.renderer.render(this.scene, this.camera);
+    if (!this.firstRender) {
+      this.firstRender = true;
+      if (this.onFirstRender) this.onFirstRender();
+    }
   }
 
   loop(t) {
