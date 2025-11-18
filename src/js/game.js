@@ -1,4 +1,4 @@
-// src/js/game.js – I Make Things: Real Carving with Chisel
+// src/js/game.js – I Make Things: Fixed Carving with Hands
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
@@ -21,7 +21,7 @@ export class Game {
     this.fpsControls = null;
     this.orbitControls = null;
     this.currentMode = 'fps';
-    this.originalGeometry = null; // For carving reset
+    this.originalGeometry = null;
   }
 
   async init() {
@@ -71,38 +71,14 @@ export class Game {
     bench.add(base, top);
     this.scene.add(bench);
 
-    // Carvable wood block with hidden target shape
+    // Carvable wood block
     const geometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32);
     this.originalGeometry = geometry.clone();
 
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uCarveProgress: { value: 0.0 },
-        uTargetShape: { value: 1.0 } // 0=sphere, 1=cube
-      },
-      vertexShader: `
-        varying vec3 vPos;
-        void main() {
-          vPos = position;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        uniform float uCarveProgress;
-        varying vec3 vPos;
-        float sdSphere(vec3 p, float r) { return length(p) - r; }
-        float sdBox(vec3 p, vec3 b) { vec3 q = abs(p) - b; return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0); }
-        void main() {
-          float dist = sdBox(vPos, vec3(0.3));
-          float reveal = 1.0 - smoothstep(0.0, 0.15, abs(dist) - uCarveProgress * 0.3);
-          vec3 wood = mix(vec3(0.87,0.72,0.53), vec3(1.0,0.9,0.7), reveal);
-          float alpha = mix(0.4, 1.0, reveal * uCarveProgress);
-          gl_FragColor = vec4(color, alpha);
-        }
-      `,
-      transparent: true
+    const material = new THREE.MeshLambertMaterial({ 
+      color: 0xDEB887, 
+      transparent: true, 
+      opacity: 0.7 
     });
 
     this.carvingBlock = new THREE.Mesh(geometry, material);
@@ -115,7 +91,7 @@ export class Game {
   createChisel() {
     const group = new THREE.Group();
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
-    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 }));
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 8), new THREE.MeshLambertMaterial({ color: 0xcccccc }));
     blade.position.y = 0.35;
     group.add(handle, blade);
     group.scale.set(0.6, 0.6, 0.6);
@@ -143,7 +119,6 @@ export class Game {
     });
 
     let lastTap = 0;
-    this.canvas.addEventListener('dblclick', () => this.toggleMode());
     this.canvas.addEventListener('click', () => {
       const now = Date.now();
       if (now - lastTap < 300) this.toggleMode();
@@ -151,15 +126,14 @@ export class Game {
     });
     window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); this.toggleMode(); } });
 
-    // Carving: mouse/touch drag
+    // Carving drag
     this.canvas.addEventListener('pointerdown', () => { if (this.chisel.visible) this.isCarving = true; });
     this.canvas.addEventListener('pointerup', () => this.isCarving = false);
     this.canvas.addEventListener('pointermove', e => this.carve(e));
-    this.canvas.addEventListener('touchmove', e => { e.preventDefault(); this.carve(e.touches[0]); }, { passive: false });
   }
 
   carve(event) {
-    if (!this.isCarving || !this.chisel.visible) return;
+    if (!this.isCarving) return;
 
     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -170,25 +144,24 @@ export class Game {
       const point = intersects[0].point;
       const geo = this.carvingBlock.geometry;
       const pos = geo.attributes.position;
-      const carveRadius = 0.15;
+      const radius = 0.15;
 
       for (let i = 0; i < pos.count; i++) {
         const vertex = new THREE.Vector3();
         vertex.fromBufferAttribute(pos, i);
-        vertex.applyMatrix4(this.carvingBlock.matrixWorld);
-        const dist = point.distanceTo(vertex);
-        if (dist < carveRadius) {
-          const strength = 1 - (dist / carveRadius);
-          vertex.lerp(point, strength * 0.05);
+        const worldVertex = vertex.clone().applyMatrix4(this.carvingBlock.matrixWorld);
+        const dist = point.distanceTo(worldVertex);
+        if (dist < radius) {
+          const strength = 1 - (dist / radius);
+          vertex.lerp(point, strength * 0.02);
           pos.setXYZ(i, vertex.x, vertex.y, vertex.z);
         }
       }
       pos.needsUpdate = true;
       geo.computeVertexNormals();
 
-      // Reveal hidden shape as we carve
-      this.carvingBlock.material.uniforms.uCarveProgress.value = Math.min(1.0,
-        this.carvingBlock.material.uniforms.uCarveProgress.value + 0.003);
+      // Increase opacity as carved
+      this.carvingBlock.material.opacity = Math.min(1.0, this.carvingBlock.material.opacity + 0.001);
     }
   }
 
@@ -217,17 +190,12 @@ export class Game {
       this.camera.position.add(dir);
 
       this.player.update(delta);
-      if (this.chisel.visible) {
+      if (this.chisel) {
         this.chisel.position.copy(this.player.rightHand.position);
         this.chisel.quaternion.copy(this.camera.quaternion);
       }
     } else {
       this.orbitControls.update();
-    }
-
-    // Pulse hidden shape
-    if (this.carvingBlock) {
-      this.carvingBlock.material.uniforms.uTime.value += delta;
     }
   }
 
@@ -254,7 +222,7 @@ export class Game {
   }
 }
 
-// Player with hands
+// Player class
 class Player {
   constructor(camera) {
     this.camera = camera;
@@ -275,7 +243,6 @@ class Player {
     this.group.add(this.rightHand);
 
     this.group.position.set(0.2, -0.3, -0.6);
-    this.holding = null;
   }
 
   update(delta) {
