@@ -1,4 +1,4 @@
-// src/js/game.js – I Make Things: First-Person Hands + Tool + Inspection
+// src/js/game.js – I Make Things: Real Carving with Chisel
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
@@ -12,21 +12,21 @@ export class Game {
     this.renderer = null;
     this.player = null;
     this.workshopItems = [];
-    this.workbench = null;
     this.carvingBlock = null;
+    this.chisel = null;
     this.isCarving = false;
-
     this.keys = {};
     this.raycaster = new THREE.Raycaster();
-
+    this.mouse = new THREE.Vector2();
     this.fpsControls = null;
     this.orbitControls = null;
-    this.currentMode = 'fps'; // 'fps' or 'inspect'
+    this.currentMode = 'fps';
+    this.originalGeometry = null; // For carving reset
   }
 
   async init() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x8B4513);
+    this.scene.background = new THREE.Color(0x2c1810);
 
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 1.6, 5);
@@ -47,6 +47,7 @@ export class Game {
     this.scene.add(this.player.group);
 
     this.createWorkshop();
+    this.createChisel();
 
     this.setupControls();
     this.setupInput();
@@ -55,41 +56,72 @@ export class Game {
   }
 
   createWorkshop() {
-    // Simple ground
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(50, 50),
-      new THREE.MeshLambertMaterial({ color: 0xD2B48C })
+      new THREE.MeshLambertMaterial({ color: 0x8B4513 })
     );
     ground.rotation.x = -Math.PI / 2;
     this.scene.add(ground);
 
-    // Workbench
     const bench = new THREE.Group();
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.7 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
     const base = new THREE.Mesh(new THREE.BoxGeometry(5, 0.8, 2.5), woodMat);
     const top = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), woodMat);
     base.position.y = 0.4; top.position.y = 1;
     bench.add(base, top);
     this.scene.add(bench);
-    this.workbench = bench;
 
-    // Wood block (the thing you will carve)
-    const block = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 0.8, 0.8, 32, 32, 32),
-      new THREE.MeshPhysicalMaterial({
-        color: 0xDEB887,
-        roughness: 0.6,
-        transmission: 0.9,
-        thickness: 0.5,
-        transparent: true,
-        opacity: 0.7
-      })
-    );
-    block.position.set(0, 1.1, 0);
-    block.userData = { type: 'carvable' };
-    bench.add(block);
-    this.workshopItems.push(block);
-    this.carvingBlock = block;
+    // Carvable wood block with hidden target shape
+    const geometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32);
+    this.originalGeometry = geometry.clone();
+
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uCarveProgress: { value: 0.0 },
+        uTargetShape: { value: 1.0 } // 0=sphere, 1=cube
+      },
+      vertexShader: `
+        varying vec3 vPos;
+        void main() {
+          vPos = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform float uCarveProgress;
+        varying vec3 vPos;
+        float sdSphere(vec3 p, float r) { return length(p) - r; }
+        float sdBox(vec3 p, vec3 b) { vec3 q = abs(p) - b; return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0); }
+        void main() {
+          float dist = sdBox(vPos, vec3(0.3));
+          float reveal = 1.0 - smoothstep(0.0, 0.15, abs(dist) - uCarveProgress * 0.3);
+          vec3 wood = mix(vec3(0.87,0.72,0.53), vec3(1.0,0.9,0.7), reveal);
+          float alpha = mix(0.4, 1.0, reveal * uCarveProgress);
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true
+    });
+
+    this.carvingBlock = new THREE.Mesh(geometry, material);
+    this.carvingBlock.position.set(0, 1.2, 0);
+    this.carvingBlock.userData = { type: 'carvable' };
+    bench.add(this.carvingBlock);
+    this.workshopItems.push(this.carvingBlock);
+  }
+
+  createChisel() {
+    const group = new THREE.Group();
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 }));
+    blade.position.y = 0.35;
+    group.add(handle, blade);
+    group.scale.set(0.6, 0.6, 0.6);
+    group.visible = false;
+    this.scene.add(group);
+    this.chisel = group;
   }
 
   setupControls() {
@@ -97,11 +129,8 @@ export class Game {
     this.scene.add(this.fpsControls.getObject());
 
     this.orbitControls = new OrbitControls(this.camera, this.canvas);
-    this.orbitControls.target.copy(this.carvingBlock.position);
+    this.orbitControls.target.set(0, 1.2, 0);
     this.orbitControls.enableDamping = true;
-    this.orbitControls.dampingFactor = 0.08;
-    this.orbitControls.minDistance = 0.5;
-    this.orbitControls.maxDistance = 6;
     this.orbitControls.enabled = false;
   }
 
@@ -109,26 +138,58 @@ export class Game {
     window.addEventListener('keydown', e => this.keys[e.code] = true);
     window.addEventListener('keyup', e => this.keys[e.code] = false);
 
-    // Click to lock pointer (desktop)
     this.canvas.addEventListener('click', () => {
       if (this.currentMode === 'fps') this.fpsControls.lock();
     });
 
-    // Double-click / Space = toggle inspection mode
-    let lastClick = 0;
+    let lastTap = 0;
     this.canvas.addEventListener('dblclick', () => this.toggleMode());
-    window.addEventListener('keydown', e => {
-      if (e.code === 'Space') { e.preventDefault(); this.toggleMode(); }
-    });
     this.canvas.addEventListener('click', () => {
       const now = Date.now();
-      if (now - lastClick < 300) this.toggleMode();
-      lastClick = now;
+      if (now - lastTap < 300) this.toggleMode();
+      lastTap = now;
     });
+    window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); this.toggleMode(); } });
 
-    // Pickup on right-click or tap
-    this.canvas.addEventListener('contextmenu', e => { e.preventDefault(); this.pickup(); });
-    this.canvas.addEventListener('touchend', () => this.pickup());
+    // Carving: mouse/touch drag
+    this.canvas.addEventListener('pointerdown', () => { if (this.chisel.visible) this.isCarving = true; });
+    this.canvas.addEventListener('pointerup', () => this.isCarving = false);
+    this.canvas.addEventListener('pointermove', e => this.carve(e));
+    this.canvas.addEventListener('touchmove', e => { e.preventDefault(); this.carve(e.touches[0]); }, { passive: false });
+  }
+
+  carve(event) {
+    if (!this.isCarving || !this.chisel.visible) return;
+
+    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const intersects = this.raycaster.intersectObject(this.carvingBlock);
+    if (intersects.length > 0) {
+      const point = intersects[0].point;
+      const geo = this.carvingBlock.geometry;
+      const pos = geo.attributes.position;
+      const carveRadius = 0.15;
+
+      for (let i = 0; i < pos.count; i++) {
+        const vertex = new THREE.Vector3();
+        vertex.fromBufferAttribute(pos, i);
+        vertex.applyMatrix4(this.carvingBlock.matrixWorld);
+        const dist = point.distanceTo(vertex);
+        if (dist < carveRadius) {
+          const strength = 1 - (dist / carveRadius);
+          vertex.lerp(point, strength * 0.05);
+          pos.setXYZ(i, vertex.x, vertex.y, vertex.z);
+        }
+      }
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+
+      // Reveal hidden shape as we carve
+      this.carvingBlock.material.uniforms.uCarveProgress.value = Math.min(1.0,
+        this.carvingBlock.material.uniforms.uCarveProgress.value + 0.003);
+    }
   }
 
   toggleMode() {
@@ -136,18 +197,11 @@ export class Game {
     if (this.currentMode === 'fps') {
       this.fpsControls.lock();
       this.orbitControls.enabled = false;
+      this.chisel.visible = true;
     } else {
       this.fpsControls.unlock();
       this.orbitControls.enabled = true;
-      this.orbitControls.target.copy(this.carvingBlock.position);
-    }
-  }
-
-  pickup() {
-    this.raycaster.setFromCamera(new THREE.Vector2(0,0), this.camera);
-    const hits = this.raycaster.intersectObjects(this.workshopItems);
-    if (hits.length > 0 && hits[0].object === this.carvingBlock) {
-      this.player.holdBlock(this.carvingBlock);
+      this.chisel.visible = false;
     }
   }
 
@@ -161,11 +215,20 @@ export class Game {
       if (this.keys['KeyD']) dir.x += 1;
       dir.normalize().applyQuaternion(this.camera.quaternion).multiplyScalar(speed);
       this.camera.position.add(dir);
+
+      this.player.update(delta);
+      if (this.chisel.visible) {
+        this.chisel.position.copy(this.player.rightHand.position);
+        this.chisel.quaternion.copy(this.camera.quaternion);
+      }
     } else {
       this.orbitControls.update();
     }
 
-    this.player.update(delta);
+    // Pulse hidden shape
+    if (this.carvingBlock) {
+      this.carvingBlock.material.uniforms.uTime.value += delta;
+    }
   }
 
   render() {
@@ -191,7 +254,7 @@ export class Game {
   }
 }
 
-// First-person hands & tool holder
+// Player with hands
 class Player {
   constructor(camera) {
     this.camera = camera;
@@ -201,7 +264,6 @@ class Player {
     const skin = new THREE.MeshLambertMaterial({ color: 0xFDBCB4 });
     const sleeve = new THREE.MeshLambertMaterial({ color: 0x333333 });
 
-    // Simple arms (replace with GLTF later)
     const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.1,0.7), sleeve);
     arm.position.set(0.4, -0.3, -0.5);
     arm.rotation.x = 0.3;
@@ -212,21 +274,12 @@ class Player {
     this.rightHand.add(hand);
     this.group.add(this.rightHand);
 
+    this.group.position.set(0.2, -0.3, -0.6);
     this.holding = null;
   }
 
   update(delta) {
-    const sway = Math.sin(Date.now()*3)*0.02;
+    const sway = Math.sin(Date.now()*0.003)*0.03;
     this.group.rotation.z = sway;
-    this.group.position.y = -0.3 + Math.sin(Date.now()*2)*0.02;
-  }
-
-  holdBlock(block) {
-    if (this.holding) return;
-    this.holding = block;
-    this.scene.remove(block);
-    this.rightHand.add(block);
-    block.position.set(0.1, -0.1, -0.4);
-    block.rotation.set(0, 0.5, 0);
   }
 }
