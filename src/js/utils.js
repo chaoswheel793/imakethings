@@ -1,9 +1,9 @@
-// src/js/utils.js – Essential helpers
+// src/js/utils.js – All helpers fixed
 export let lastTime = 0;
 export function getDeltaTime(currentTime) {
   const delta = (currentTime - lastTime) / 1000;
   lastTime = currentTime;
-  return Math.min(delta, 1/30); // Cap for mobile
+  return Math.min(delta, 1/30);
 }
 
 export function log(...args) {
