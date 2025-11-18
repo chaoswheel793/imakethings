@@ -13,7 +13,7 @@
   <meta name="theme-color" content="#000000" />
   <link rel="apple-touch-icon" href="/assets/images/icon-192.png" />
   
-  <!-- Three.js + all controls we need -->
+  <!-- Three.js + controls -->
   <script type="module" src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js"></script>
   <script type="module" src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js"></script>
   <script type="module" src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js"></script>
@@ -22,7 +22,10 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <div id="loading">Loading I Make Things...</div>
+  <div id="loading">
+    Loading I Make Things...
+    <div class="spinner"></div>
+  </div>
   <canvas id="gameCanvas"></canvas>
   
   <script type="module" src="src/js/main.js"></script>
