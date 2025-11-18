@@ -1,4 +1,4 @@
-// src/js/game.js – I Make Things: Fixed Carving with Hands
+// src/js/game.js – I Make Things: Complete Workshop + Hands + Carving
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
@@ -21,7 +21,6 @@ export class Game {
     this.fpsControls = null;
     this.orbitControls = null;
     this.currentMode = 'fps';
-    this.originalGeometry = null;
   }
 
   async init() {
@@ -56,6 +55,7 @@ export class Game {
   }
 
   createWorkshop() {
+    // Ground
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(50, 50),
       new THREE.MeshLambertMaterial({ color: 0x8B4513 })
@@ -63,24 +63,23 @@ export class Game {
     ground.rotation.x = -Math.PI / 2;
     this.scene.add(ground);
 
+    // Workbench
     const bench = new THREE.Group();
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
     const base = new THREE.Mesh(new THREE.BoxGeometry(5, 0.8, 2.5), woodMat);
     const top = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), woodMat);
-    base.position.y = 0.4; top.position.y = 1;
+    base.position.y = 0.4;
+    top.position.y = 1;
     bench.add(base, top);
     this.scene.add(bench);
 
-    // Carvable wood block
+    // Carving block (semi-transparent)
     const geometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32);
-    this.originalGeometry = geometry.clone();
-
-    const material = new THREE.MeshLambertMaterial({ 
-      color: 0xDEB887, 
-      transparent: true, 
-      opacity: 0.7 
+    const material = new THREE.MeshLambertMaterial({
+      color: 0xDEB887,
+      transparent: true,
+      opacity: 0.6
     });
-
     this.carvingBlock = new THREE.Mesh(geometry, material);
     this.carvingBlock.position.set(0, 1.2, 0);
     this.carvingBlock.userData = { type: 'carvable' };
@@ -90,8 +89,14 @@ export class Game {
 
   createChisel() {
     const group = new THREE.Group();
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
-    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 8), new THREE.MeshLambertMaterial({ color: 0xcccccc }));
+    const handle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.4),
+      new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+    );
+    const blade = new THREE.Mesh(
+      new THREE.ConeGeometry(0.06, 0.3, 8),
+      new THREE.MeshLambertMaterial({ color: 0xcccccc })
+    );
     blade.position.y = 0.35;
     group.add(handle, blade);
     group.scale.set(0.6, 0.6, 0.6);
@@ -124,7 +129,12 @@ export class Game {
       if (now - lastTap < 300) this.toggleMode();
       lastTap = now;
     });
-    window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); this.toggleMode(); } });
+    window.addEventListener('keydown', e => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        this.toggleMode();
+      }
+    });
 
     // Carving drag
     this.canvas.addEventListener('pointerdown', () => { if (this.chisel.visible) this.isCarving = true; });
@@ -160,7 +170,7 @@ export class Game {
       pos.needsUpdate = true;
       geo.computeVertexNormals();
 
-      // Increase opacity as carved
+      // Increase opacity as carved (reveal effect)
       this.carvingBlock.material.opacity = Math.min(1.0, this.carvingBlock.material.opacity + 0.001);
     }
   }
@@ -216,9 +226,9 @@ export class Game {
 
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
-    this.camera.aspect = w/h;
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w,h);
+    this.renderer.setSize(w, h);
   }
 }
 
@@ -232,12 +242,12 @@ class Player {
     const skin = new THREE.MeshLambertMaterial({ color: 0xFDBCB4 });
     const sleeve = new THREE.MeshLambertMaterial({ color: 0x333333 });
 
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.1,0.7), sleeve);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.7), sleeve);
     arm.position.set(0.4, -0.3, -0.5);
     arm.rotation.x = 0.3;
     this.group.add(arm);
 
-    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.12,0.25), skin);
+    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.25), skin);
     hand.position.set(0.4, -0.7, -0.7);
     this.rightHand.add(hand);
     this.group.add(this.rightHand);
@@ -246,7 +256,7 @@ class Player {
   }
 
   update(delta) {
-    const sway = Math.sin(Date.now()*0.003)*0.03;
+    const sway = Math.sin(Date.now() * 0.003) * 0.03;
     this.group.rotation.z = sway;
   }
 }
