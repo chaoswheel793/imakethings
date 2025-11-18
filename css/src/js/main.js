@@ -1,4 +1,4 @@
-// src/js/main.js – FINAL FIX: Hide loading only after first render
+// src/js/main.js – 100% Chromebook-Proof: Hides loading ONLY when scene renders
 import { Game } from './game.js';
 
 class IMakeThings {
@@ -13,12 +13,12 @@ class IMakeThings {
       this.game = new Game(this.canvas);
       await this.game.init();
 
-      // CRITICAL: Hide loading ONLY when first frame actually renders
-      this.game.onFirstRender = () => {
-        console.log('First frame rendered – hiding loading');
-        this.loading.style.transition = 'opacity 0.8s';
+      // This function is called from inside render() — GUARANTEED after first frame
+      this.game.hideLoading = () => {
+        console.log('Scene rendered – hiding loading');
+        this.loading.style.transition = 'opacity 1s';
         this.loading.style.opacity = '0';
-        setTimeout(() => this.loading.style.display = 'none', 800);
+        setTimeout(() => this.loading.style.display = 'none', 1000);
       };
 
       this.game.start();
