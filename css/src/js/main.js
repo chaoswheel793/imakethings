@@ -1,4 +1,4 @@
-// src/js/main.js – GPU-safe bootstrap
+// src/js/main.js – FINAL FIX: Hide loading only after first render
 import { Game } from './game.js';
 
 class IMakeThings {
@@ -10,28 +10,21 @@ class IMakeThings {
 
   async init() {
     try {
-      // GPU check
-      const gl = this.canvas.getContext('webgl');
-      if (!gl) {
-        this.loading.innerHTML = 'WebGL not supported – update Chrome OS.';
-        return;
-      }
-      console.log('WebGL supported');
-
       this.game = new Game(this.canvas);
       await this.game.init();
 
+      // CRITICAL: Hide loading ONLY when first frame actually renders
       this.game.onFirstRender = () => {
-        console.log('First render – hiding loading');
-        this.loading.style.transition = 'opacity 0.5s';
+        console.log('First frame rendered – hiding loading');
+        this.loading.style.transition = 'opacity 0.8s';
         this.loading.style.opacity = '0';
-        setTimeout(() => this.loading.style.display = 'none', 500);
+        setTimeout(() => this.loading.style.display = 'none', 800);
       };
 
       this.game.start();
     } catch (err) {
       console.error('Init failed:', err);
-      this.loading.innerHTML = 'Error – check console (F12).';
+      this.loading.innerHTML = 'Error – check console (F12)';
     }
   }
 
