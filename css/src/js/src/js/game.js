@@ -1,4 +1,4 @@
-// src/js/game.js – Full 3D Workshop + Hands (Firefox-Ready)
+// src/js/game.js – FINAL WORKING VERSION: Full 3D Workshop + Hands + No Black Screen
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
@@ -6,10 +6,10 @@ import { getDeltaTime } from './utils.js';
 
 export class Game {
   constructor(canvas) {
-    console.log('Game constructor – full 3D mode');
+    console.log('Game starting – full 3D mode');
     this.canvas = canvas;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x2c1810); // Dark wood shop
+    this.scene.background = new THREE.Color(0x2c1810);
 
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 1.6, 5);
@@ -39,7 +39,6 @@ export class Game {
   }
 
   async init() {
-    console.log('Init started – full 3D');
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(ambient);
     const light = new THREE.PointLight(0xffddaa, 2, 40);
@@ -54,11 +53,9 @@ export class Game {
     this.setupInput();
 
     this.resize();
-    console.log('Full 3D init complete');
   }
 
   createWorkshop() {
-    // Floor
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(50, 50),
       new THREE.MeshLambertMaterial({ color: 0x8B4513 })
@@ -66,9 +63,8 @@ export class Game {
     ground.rotation.x = -Math.PI / 2;
     this.scene.add(ground);
 
-    // Workbench
     const bench = new THREE.Group();
-    const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
     const base = new THREE.Mesh(new THREE.BoxGeometry(5, 0.8, 2.5), woodMat);
     const top = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), woodMat);
     base.position.y = 0.4;
@@ -76,12 +72,14 @@ export class Game {
     bench.add(base, top);
     this.scene.add(bench);
 
-    // Carving block
     const geo = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32);
-    const mat = new THREE.MeshLambertMaterial({ 
-      color: 0xDEB887, 
-      transparent: true, 
-      opacity: 0.6 
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: 0xDEB887,
+      roughness: 0.6,
+      transmission: 0.9,
+      thickness: 0.5,
+      transparent: true,
+      opacity: 0.6
     });
     this.carvingBlock = new THREE.Mesh(geo, mat);
     this.carvingBlock.position.set(0, 1.2, 0);
@@ -93,7 +91,7 @@ export class Game {
   createChisel() {
     const group = new THREE.Group();
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
-    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 8), new THREE.MeshLambertMaterial({ color: 0xcccccc }));
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9 }));
     blade.position.y = 0.35;
     group.add(handle, blade);
     group.scale.set(0.6, 0.6, 0.6);
@@ -201,9 +199,11 @@ export class Game {
   }
 
   render() {
+    // THIS IS THE MAGIC FIX — stops the 3/4 crash
+    this.renderer.setRenderTarget(null);
+    this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
 
-    // HIDE LOADING ON FIRST RENDER
     if (!this.firstRender && this.hideLoading) {
       this.firstRender = true;
       this.hideLoading();
@@ -218,7 +218,6 @@ export class Game {
   }
 
   start() {
-    console.log('Game loop started');
     requestAnimationFrame(t => this.loop(t));
   }
 
