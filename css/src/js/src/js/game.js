@@ -1,4 +1,4 @@
-// src/js/game.js – Fix for Black Screen Flash on Reload
+// src/js/game.js – Full 3D Workshop + Hands (Firefox-Ready)
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
@@ -6,25 +6,19 @@ import { getDeltaTime } from './utils.js';
 
 export class Game {
   constructor(canvas) {
-    console.log('Game constructor – fixing reload flash');
+    console.log('Game constructor – full 3D mode');
     this.canvas = canvas;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x2c1810);
+    this.scene.background = new THREE.Color(0x2c1810); // Dark wood shop
 
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 1.6, 5);
 
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, preserveDrawingBuffer: true });
-    this.renderer.setClearColor(0x2c1810, 1); // Force clear to avoid flash
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+    this.renderer.setClearColor(0x2c1810, 1);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
-
-    // FIX FOR RELOAD FLASH: Force context to stick
-    this.renderer.domElement.style.visibility = 'visible';
-    this.renderer.forceContextLoss();
-    this.renderer.forceContextRestoration();
-    console.log('Context restored – no more flash');
 
     this.onFirstRender = null;
     this.firstRender = false;
@@ -45,7 +39,7 @@ export class Game {
   }
 
   async init() {
-    console.log('Init started');
+    console.log('Init started – full 3D');
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(ambient);
     const light = new THREE.PointLight(0xffddaa, 2, 40);
@@ -60,7 +54,7 @@ export class Game {
     this.setupInput();
 
     this.resize();
-    console.log('Init complete – first render incoming');
+    console.log('Full 3D init complete');
   }
 
   createWorkshop() {
@@ -209,7 +203,7 @@ export class Game {
   render() {
     this.renderer.render(this.scene, this.camera);
 
-    // HIDE LOADING ON FIRST RENDER – FINAL FIX
+    // HIDE LOADING ON FIRST RENDER
     if (!this.firstRender && this.hideLoading) {
       this.firstRender = true;
       this.hideLoading();
