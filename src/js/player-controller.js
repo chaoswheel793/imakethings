@@ -1,162 +1,107 @@
-// src/js/player-controller.js – PROMPT #2: Full Look Controls + PointerLock + Touch
+// src/js/player-controller.js – FINAL WORKING VERSION
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 
 export class PlayerController {
   constructor(camera, domElement) {
-    this.group = new THREE.Group();
     this.camera = camera;
-    this.group.add(this.camera);
-    this.camera.position.set(0, 1.6, 0);
-
-    // Movement constants
-    this.WALKING_SPEED = 5.0;
-    this.SPRINT_SPEED = 8.0;
-    this.GRAVITY = -29.8;
-    this.JUMP_VELOCITY = 10.0;
-
-    // Look constants
-    this.MOUSE_SENSITIVITY = 0.002;
-    this.TOUCH_SENSITIVITY = 0.003;
-    this.MAX_PITCH = Math.PI / 2 * 0.8; // 72 degrees up/down
-
-    this.velocity = new THREE.Vector3(0, 0, 0);
-    this.isGrounded = true;
-    this.keys = {};
-    this.bobTime = 0;
-    this.bobActive = false;
-
-    this.pitch = 0; // Vertical look
-    this.yaw = 0;   // Horizontal look
-
     this.domElement = domElement;
 
-    // Touch state
-    this.touchStart = null;
-    this.touchCurrent = null;
+    this.group = new THREE.Group();
+    this.group.add(camera);
+    camera.position.set(0, 1.6, 0);
 
-    // PointerLock for desktop
-    this.pointerLock = false;
+    this.velocity = new THREE.Vector3();
+    this.direction = new THREE.Vector3();
+    this.move = { forward: 0, right: 0 };
+    this.canJump = false;
+
+    // Look
+    this.pitch = 0;
+    this.yaw = 0;
+    this.mouseSensitivity = 0.002;
+
+    this.keys = {};
+    this.isLocked = false;
+
+    this.setupControls();
   }
+
+  setupControls() {
+    this.domElement.addEventListener('click', () => this.lock());
+    document.addEventListener('pointerlockchange', () => {
+      this.isLocked = document.pointerLockElement === this.domElement;
+    });
+
+    this.domElement.addEventListener('mousemove', (e) => {
+      if (!this.isLocked) return;
+      this.yaw -= e.movementX * this.mouseSensitivity;
+      this.pitch -= e.movementY * this.mouseSensitivity;
+      this.pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, this.pitch));
+    });
+
+    // Double-tap or ESC to unlock
+    let lastTap = 0;
+    this.domElement.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const now = Date.now();
+      if (now - lastTap < 300) this.unlock();
+      lastTap = now;
+    });
+    this.domElement.addEventListener('dblclick', () => this.unlock());
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') this.unlock();
+    });
+  }
+
+  lock() { this.domElement.requestPointerLock(); }
+  unlock() { document.exitPointerLock(); }
 
   update(delta, keys) {
     this.keys = keys;
 
-    // === GRAVITY & JUMP ===
-    this.velocity.y += this.GRAVITY * delta;
-    if (this.keys['Space'] && this.isGrounded) {
-      this.velocity.y = this.JUMP_VELOCITY;
-      this.isGrounded = false;
+    // Reset movement
+    this.move.forward = this.move.right = 0;
+    if (keys['KeyW']) this.move.forward += 1;
+    if (keys['KeyS']) this.move.forward -= 1;
+    if (keys['KeyA']) this.move.right -= 1;
+    if (keys['KeyD']) this.move.right += 1;
+
+    // Apply look
+    this.group.rotation.y = this.yaw;
+    this.camera.rotation.x = this.pitch;
+
+    // Movement
+    const speed = 5.0;
+    this.direction.z = this.move.forward;
+    this.direction.x = this.move.right;
+    this.direction.normalize().multiplyScalar(speed * delta);
+    this.direction.applyQuaternion(this.group.quaternion);
+    this.group.position.add(this.direction);
+
+    // Jump
+    if (keys['Space'] && this.canJump) {
+      this.velocity.y = 10;
+      this.canJump = false;
     }
 
-    // === HORIZONTAL MOVEMENT ===
-    const speed = this.keys['ShiftLeft'] ? this.SPRINT_SPEED : this.WALKING_SPEED;
-    const forward = new THREE.Vector3(0, 0, -1);
-    forward.applyQuaternion(this.group.quaternion);
-    forward.y = 0;
-    forward.normalize();
-
-    const right = new THREE.Vector3(1, 0, 0);
-    right.applyQuaternion(this.group.quaternion);
-    right.y = 0;
-    right.normalize();
-
-    const moveDir = new THREE.Vector3();
-    if (this.keys['KeyW'] || this.keys['ArrowUp']) moveDir.add(forward);
-    if (this.keys['KeyS'] || this.keys['ArrowDown']) moveDir.sub(forward);
-    if (this.keys['KeyA'] || this.keys['ArrowLeft']) moveDir.sub(right);
-    if (this.keys['KeyD'] || this.keys['ArrowRight']) moveDir.add(right);
-
-    if (moveDir.length() > 0) {
-      moveDir.normalize().multiplyScalar(speed * delta);
-      this.group.position.add(moveDir);
-      this.bobActive = true;
-    } else {
-      this.bobActive = false;
-    }
-
-    // === VERTICAL (GRAVITY) ===
+    // Gravity
+    this.velocity.y -= 30 * delta;
     this.group.position.y += this.velocity.y * delta;
-    if (this.group.position.y < 1.6) {
+
+    // Ground
+    if (this.group.position.y <= 1.6) {
       this.group.position.y = 1.6;
       this.velocity.y = 0;
-      this.isGrounded = true;
+      this.canJump = true;
     }
 
-    // === HEAD BOB ===
-    if (this.bobActive && this.isGrounded) {
-      this.bobTime += delta * 9;
-      const bob = Math.sin(this.bobTime) * 0.04;
+    // Head bob
+    if (this.move.forward || this.move.right) {
+      const time = performance.now() * 0.008;
+      const bob = Math.sin(time) * 0.04;
       this.camera.position.y = 1.6 + bob;
     } else {
-      this.camera.position.y = THREE.MathUtils.lerp(this.camera.position.y, 1.6, delta * 10);
+      this.camera.position.y += (1.6 - this.camera.position.y) * 0.1;
     }
-
-    // === MOUSE LOOK (PointerLock) ===
-    if (this.pointerLock) {
-      this.pitch -= this.mouseY * this.MOUSE_SENSITIVITY;
-      this.yaw -= this.mouseX * this.MOUSE_SENSITIVITY;
-
-      this.pitch = THREE.MathUtils.clamp(this.pitch, -this.MAX_PITCH, this.MAX_PITCH);
-      this.group.rotation.order = 'YXZ';
-      this.group.rotation.y = this.yaw;
-      this.camera.rotation.x = this.pitch;
-    }
-
-    // === TOUCH LOOK (Drag) ===
-    if (this.touchCurrent && this.touchStart) {
-      const deltaX = this.touchCurrent.x - this.touchStart.x;
-      const deltaY = this.touchCurrent.y - this.touchStart.y;
-
-      this.pitch -= deltaY * this.TOUCH_SENSITIVITY;
-      this.yaw -= deltaX * this.TOUCH_SENSITIVITY;
-
-      this.pitch = THREE.MathUtils.clamp(this.pitch, -this.MAX_PITCH, this.MAX_PITCH);
-      this.group.rotation.y = this.yaw;
-      this.camera.rotation.x = this.pitch;
-    }
-  }
-
-  // Mouse move for look
-  onMouseMove = (event) => {
-    if (this.pointerLock) {
-      this.mouseX = event.movementX || 0;
-      this.mouseY = event.movementY || 0;
-    }
-  };
-
-  // Touch events
-  onTouchStart = (event) => {
-    this.touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-  };
-
-  onTouchMove = (event) => {
-    this.touchCurrent = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-  };
-
-  onTouchEnd = () => {
-    this.touchStart = null;
-    this.touchCurrent = null;
-  };
-
-  // PointerLock events
-  onPointerLockChange = () => {
-    this.pointerLock = document.pointerLockElement === this.domElement;
-  };
-
-  // Connect to DOM
-  connect() {
-    this.domElement.addEventListener('mousemove', this.onMouseMove);
-    this.domElement.addEventListener('touchstart', this.onTouchStart);
-    this.domElement.addEventListener('touchmove', this.onTouchMove);
-    this.domElement.addEventListener('touchend', this.onTouchEnd);
-    document.addEventListener('pointerlockchange', this.onPointerLockChange);
-  }
-
-  disconnect() {
-    this.domElement.removeEventListener('mousemove', this.onMouseMove);
-    this.domElement.removeEventListener('touchstart', this.onTouchStart);
-    this.domElement.removeEventListener('touchmove', this.onTouchMove);
-    this.domElement.removeEventListener('touchend', this.onTouchEnd);
-    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
   }
 }
