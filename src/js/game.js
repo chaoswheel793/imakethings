@@ -1,9 +1,7 @@
-// src/js/game.js – FINAL FIX: cache-buster forces player.js to load
+// src/js/game.js – FINAL WORKING WITH FRESH CONTROLLER
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
-
-// CACHE-BUSTER: forces fresh load of player.js
-import { PlayerController } from './player.js?v=18';
+import { PlayerController } from './player-controller.js';
 import { getDeltaTime } from './utils.js';
 
 export class Game {
@@ -19,7 +17,6 @@ export class Game {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.shadowMap.enabled = true;
 
-    // This will now work — player.js is fresh
     this.playerController = new PlayerController(this.camera, this.canvas);
     this.scene.add(this.playerController.group);
 
@@ -27,12 +24,8 @@ export class Game {
     this.fpsControls = new PointerLockControls(this.camera, canvas);
     this.scene.add(this.fpsControls.getObject());
 
-    this.carvingBlock = null;
-    this.chisel = null;
-    this.isCarving = false;
     this.chiselVisible = false;
-    this.raycaster = new THREE.Raycaster();
-    this.mouse = new THREE.Vector2();
+    this.chisel = null;
   }
 
   async init() {
@@ -45,16 +38,12 @@ export class Game {
     this.createWorkshop();
     this.createChisel();
     this.setupInput();
-
     this.resize();
     this.hideLoading?.();
   }
 
   createWorkshop() {
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(50, 50),
-      new THREE.MeshStandardMaterial({ color: 0x8B4513 })
-    );
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshStandardMaterial({ color: 0x8B4513 }));
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     this.scene.add(floor);
@@ -69,28 +58,17 @@ export class Game {
     this.scene.add(bench);
 
     const geo = new THREE.BoxGeometry(1, 1, 1, 48, 48, 48);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xDEB887,
-      transparent: true,
-      opacity: 0.6,
-      roughness: 0.8
-    });
-    this.carvingBlock = new THREE.Mesh(geo, mat);
-    this.carvingBlock.position.set(0, 1.2, 0);
-    this.carvingBlock.castShadow = true;
-    bench.add(this.carvingBlock);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xDEB887, transparent: true, opacity: 0.6, roughness: 0.8 });
+    const block = new THREE.Mesh(geo, mat);
+    block.position.set(0, 1.2, 0);
+    block.castShadow = true;
+    bench.add(block);
   }
 
   createChisel() {
     const group = new THREE.Group();
-    const handle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.05, 0.05, 0.4),
-      new THREE.MeshStandardMaterial({ color: 0x8B4513 })
-    );
-    const blade = new THREE.Mesh(
-      new THREE.ConeGeometry(0.06, 0.3, 12),
-      new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.95, roughness: 0.1 })
-    );
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4), new THREE.MeshStandardMaterial({ color: 0x8B4513 }));
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 12), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.95 }));
     blade.position.y = 0.35;
     group.add(handle, blade);
     group.scale.set(1.4, 1.4, 1.4);
@@ -117,27 +95,22 @@ export class Game {
     this.playerController.update(delta, this.keys);
 
     if (this.chisel?.visible) {
-      const direction = new THREE.Vector3();
-      this.camera.getWorldDirection(direction);
-      this.chisel.position.copy(this.camera.position);
-      this.chisel.position.add(direction.multiplyScalar(0.6));
-      this.chisel.position.y -= 0.4;
+      const dir = new THREE.Vector3();
+      this.camera.getWorldDirection(dir);
+      this.chisel.position.copy(this.camera.position).add(dir.multiplyScalar(0.6)).sub(new THREE.Vector3(0, 0.4, 0));
       this.chisel.quaternion.copy(this.camera.quaternion);
       this.chisel.rotateX(-1.4);
     }
   }
 
   render() { this.renderer.render(this.scene, this.camera); }
-
   loop = (t) => {
     const delta = getDeltaTime(t);
     this.update(delta);
     this.render();
     requestAnimationFrame(this.loop);
   };
-
   start() { requestAnimationFrame(this.loop); }
-
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.camera.aspect = w / h;
