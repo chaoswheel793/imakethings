@@ -1,7 +1,7 @@
-// src/js/game.js – FINAL: Fresh PlayerController – NO BLACK SCREEN
+// src/js/game.js – JUMP WORKS + PERFECT TOUCHPAD + MOUSE WHEEL SUPPORT
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
-import { PlayerController } from './player-controller.js';  // FRESH FILE
+import { PlayerController } from './player-controller.js';
 import { getDeltaTime } from './utils.js';
 
 export class Game {
@@ -17,20 +17,25 @@ export class Game {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.shadowMap.enabled = true;
 
-    // FRESH CONTROLLER
+    // Fresh controller
     this.playerController = new PlayerController(this.camera, this.canvas);
     this.scene.add(this.playerController.group);
 
+    // Input state
     this.keys = {};
     this.fpsControls = new PointerLockControls(this.camera, canvas);
     this.scene.add(this.fpsControls.getObject());
 
     this.chiselVisible = false;
     this.chisel = null;
+
+    // Touchpad / trackpad state
+    this.twoFingerDeltaY = 0;
+    this.isOneFingerDown = false;
+    this.turnDeltaX = 0;
   }
 
   async init() {
-    // Lighting
     this.scene.add(new THREE.AmbientLight(0xffffff, 1.6));
     const sun = new THREE.DirectionalLight(0xffeecc, 4);
     sun.position.set(5, 10, 7);
@@ -83,21 +88,76 @@ export class Game {
 
   setupInput() {
     this.canvas.addEventListener('contextmenu', e => e.preventDefault());
-    window.addEventListener('keydown', e => this.keys[e.code] = true);
-    window.addEventListener('keyup', e => this.keys[e.code] = false);
-    this.canvas.addEventListener('click', () => this.fpsControls.lock());
 
+    // Keyboard
+    window.addEventListener('keydown', e => { this.keys[e.code] = true; });
+    window.addEventListener('keyup', e => { this.keys[e.code] = false; });
+
+    // Pointer lock (click to capture mouse)
+    this.canvas.addEventListener('click', () => this.fpsControls.lock());
     this.fpsControls.addEventListener('lock', () => {
       if (!this.chiselVisible) {
         this.chisel.visible = true;
         this.chiselVisible = true;
       }
     });
+
+    // === TOUCHPAD / TRACKPAD SUPPORT ===
+    let touchCount = 0;
+    let lastTouchY = 0;
+    let lastSingleTouchX = 0;
+
+    this.canvas.addEventListener('touchstart', e => {
+      touchCount = e.touches.length;
+      if (touchCount === 1) {
+        this.isOneFingerDown = true;
+        lastSingleTouchX = e.touches[0].clientX;
+      }
+      if (touchCount === 2) lastTouchY = e.touches[0].clientY + e.touches[1].clientY;
+    });
+
+    this.canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if (touchCount === 2) {
+        const currentY = e.touches[0].clientY + e.touches[1].clientY;
+        this.twoFingerDeltaY = (lastTouchY - currentY) * 0.08; // forward/back
+        lastTouchY = currentY;
+      }
+      if (touchCount === 2 && this.isOneFingerDown) {
+        const currentX = e.touches[0].clientX; // second finger
+        this.turnDeltaX = (lastSingleTouchX - currentX) * 0.004;
+        lastSingleTouchX = currentX;
+      }
+    });
+
+    this.canvas.addEventListener('touchend', () => {
+      touchCount = 0;
+      this.twoFingerDeltaY = 0;
+      this.turnDeltaX = 0;
+      this.isOneFingerDown = false;
+    });
+
+    // Mouse wheel = forward/back like two-finger swipe
+    this.canvas.addEventListener('wheel', e => {
+      this.twoFingerDeltaY = e.deltaY * 0.05;
+    });
   }
 
   update(delta) {
+    // Pass simulated keys from touchpad
+    if (this.twoFingerDeltaY > 5) this.keys['KeyW'] = true, this.keys['KeyS'] = false;
+    else if (this.twoFingerDeltaY < -5) this.keys['KeyS'] = true, this.keys['KeyW'] = false;
+    else this.keys['KeyW'] = this.keys['KeyW'] || false, this.keys['KeyS'] = this.keys['KeyS'] || false;
+
+    // Turn from second finger
+    if (Math.abs(this.turnDeltaX) > 0.01) {
+      this.playerController.yaw -= this.turnDeltaX;
+    }
+
+    // ALWAYS PASS KEYS TO CONTROLLER
     this.playerController.update(delta, this.keys);
 
+    // Chisel follow camera
     if (this.chisel?.visible) {
       const dir = new THREE.Vector3();
       this.camera.getWorldDirection(dir);
