@@ -1,4 +1,4 @@
-// src/js/main.js – FINAL: Hides loading only when first frame renders
+// src/js/main.js – Timing Fix: Delay Hide + Render Callback for Black Screen
 import { Game } from './game.js';
 
 class IMakeThings {
@@ -13,26 +13,22 @@ class IMakeThings {
       this.game = new Game(this.canvas);
       await this.game.init();
 
-      // Called from render() when first frame is visible
-      this.game.hideLoading = () => {
-        console.log('First frame rendered – hiding loading spinner');
-        this.loading.style.transition = 'opacity 1s';
+      // DELAY HIDE BY 1S TO SYNC WITH RENDER + CALLBACK FOR SAFETY
+      setTimeout(() => {
+        if (this.game.onFirstRender) this.game.onFirstRender(); // Callback after first frame
+        this.loading.style.transition = 'opacity 0.8s';
         this.loading.style.opacity = '0';
-        setTimeout(() => {
-          this.loading.style.display = 'none';
-        }, 1000);
-      };
+        setTimeout(() => this.loading.style.display = 'none', 800);
+      }, 1000); // 1s buffer for init/render sync
 
       this.game.start();
     } catch (err) {
-      console.error('Game failed to load:', err);
+      console.error('Init failed:', err);
       this.loading.innerHTML = 'Error – check console (F12)';
     }
   }
 
-  handleResize = () => {
-    if (this.game) this.game.resize();
-  };
+  handleResize = () => this.game?.resize();
 }
 
 const app = new IMakeThings();
