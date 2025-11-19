@@ -1,37 +1,26 @@
-// src/js/main.js – FINAL WORKING VERSION
+// src/js/main.js – Spinner stays, but fades out when scene is ready
 import { Game } from './game.js';
 
-class IMakeThings {
-  constructor() {
-    this.canvas = document.getElementById('gameCanvas');
-    this.loading = document.getElementById('loading');
-    this.game = null;
+const canvas = document.getElementById('gameCanvas');
+const loading = document.getElementById('loading');
+
+const game = new Game(canvas);
+
+game.hideLoading = () => {
+  console.log('First frame rendered – hiding spinner');
+  loading.style.transition = 'opacity 1s ease-out';
+  loading.style.opacity = '0';
+  setTimeout(() => loading.style.display = 'none', 1000);
+};
+
+(async () => {
+  try {
+    await game.init();
+    game.start();          // Start render loop
+  } catch (err) {
+    console.error(err);
+    loading.innerHTML = 'Load failed – press F12';
   }
+})();
 
-  async init() {
-    try {
-      this.game = new Game(this.canvas);
-      await this.game.init();
-
-      // Hide loading as soon as first frame renders
-      this.game.onFirstRender = () => {
-        this.loading.style.transition = 'opacity 0.8s';
-        this.loading.style.opacity = '0';
-        setTimeout(() => this.loading.style.display = 'none', 800);
-      };
-
-      this.game.start();
-    } catch (err) {
-      console.error('Init failed:', err);
-      this.loading.innerHTML = 'Error – check console (F12)';
-    }
-  }
-
-  handleResize = () => this.game?.resize();
-}
-
-const app = new IMakeThings();
-app.init();
-
-window.addEventListener('resize', app.handleResize);
-window.addEventListener('orientationchange', () => setTimeout(app.handleResize, 300));
+window.addEventListener('resize', () => game.resize());
