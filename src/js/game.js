@@ -1,7 +1,7 @@
-// src/js/game.js – FINAL WORKING WITH FRESH CONTROLLER
+// src/js/game.js – FINAL: Fresh PlayerController – NO BLACK SCREEN
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
-import { PlayerController } from './player-controller.js';
+import { PlayerController } from './player-controller.js';  // FRESH FILE
 import { getDeltaTime } from './utils.js';
 
 export class Game {
@@ -17,6 +17,7 @@ export class Game {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.shadowMap.enabled = true;
 
+    // FRESH CONTROLLER
     this.playerController = new PlayerController(this.camera, this.canvas);
     this.scene.add(this.playerController.group);
 
@@ -29,6 +30,7 @@ export class Game {
   }
 
   async init() {
+    // Lighting
     this.scene.add(new THREE.AmbientLight(0xffffff, 1.6));
     const sun = new THREE.DirectionalLight(0xffeecc, 4);
     sun.position.set(5, 10, 7);
@@ -38,6 +40,7 @@ export class Game {
     this.createWorkshop();
     this.createChisel();
     this.setupInput();
+
     this.resize();
     this.hideLoading?.();
   }
@@ -63,6 +66,7 @@ export class Game {
     block.position.set(0, 1.2, 0);
     block.castShadow = true;
     bench.add(block);
+    this.carvingBlock = block;
   }
 
   createChisel() {
@@ -104,13 +108,16 @@ export class Game {
   }
 
   render() { this.renderer.render(this.scene, this.camera); }
+
   loop = (t) => {
     const delta = getDeltaTime(t);
     this.update(delta);
     this.render();
     requestAnimationFrame(this.loop);
   };
+
   start() { requestAnimationFrame(this.loop); }
+
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.camera.aspect = w / h;
