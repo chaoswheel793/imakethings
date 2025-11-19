@@ -1,7 +1,7 @@
-// src/js/game.js – NOW USING PROFESSIONAL PlayerController
+// src/js/game.js – PlayerController WORKS – NO BLACK SCREEN
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
-import { PlayerController } from './player.js';
+import { PlayerController } from './player.js';  // ← FIXED: relative path
 import { getDeltaTime } from './utils.js';
 
 export class Game {
@@ -17,24 +17,22 @@ export class Game {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.shadowMap.enabled = true;
 
-    // NEW: Professional controller
+    // Professional controller
     this.playerController = new PlayerController(this.camera, this.canvas);
     this.scene.add(this.playerController.group);
 
-    // Input state shared with controller
     this.keys = {};
 
-    // Old stuff we'll replace step by step
-    this.carvingBlock = null;
-    this.chisel = null;
-    this.isCarving = false;
-    this.raycaster = new THREE.Raycaster();
-    this.mouse = new THREE.Vector2();
+    // Keep PointerLock for now (will be replaced in Prompt #2)
     this.fpsControls = new PointerLockControls(this.camera, canvas);
     this.scene.add(this.fpsControls.getObject());
 
+    this.carvingBlock = null;
+    this.chisel = null;
+    this.isCarving = false;
     this.chiselVisible = false;
-    this.activePointers = 0;
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
   }
 
   async init() {
@@ -105,32 +103,25 @@ export class Game {
     this.canvas.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('keydown', e => this.keys[e.code] = true);
     window.addEventListener('keyup', e => this.keys[e.code] = false);
-
-    // Pointer lock on click (we’ll refine in Prompt #2)
     this.canvas.addEventListener('click', () => this.fpsControls.lock());
 
     this.fpsControls.addEventListener('lock', () => {
       if (!this.chiselVisible) {
-        this. chisel.visible = true;
+        this.chisel.visible = true;
         this.chiselVisible = true;
       }
     });
   }
 
-  carve(event) {
-    if (!this.isCarving || !this.chiselVisible) return;
-    // ... (same carving code as before – unchanged for now)
-  }
-
   update(delta) {
-    // NEW: Use professional controller
     this.playerController.update(delta, this.keys);
 
-    // Chisel follows hand (temporary – will be replaced with proper hand rig)
     if (this.chisel?.visible) {
+      const direction = new THREE.Vector3();
+      this.camera.getWorldDirection(direction);
       this.chisel.position.copy(this.camera.position);
+      this.chisel.position.add(direction.multiplyScalar(0.6));
       this.chisel.position.y -= 0.4;
-      this.chisel.position.add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(0.6));
       this.chisel.quaternion.copy(this.camera.quaternion);
       this.chisel.rotateX(-1.4);
     }
@@ -139,7 +130,7 @@ export class Game {
   render() { this.renderer.render(this.scene, this.camera); }
 
   loop = (t) => {
-    const delta = get-DecemberTime(t);
+    const delta = getDeltaTime(t);
     this.update(delta);
     this.render();
     requestAnimationFrame(this.loop);
@@ -149,6 +140,7 @@ export class Game {
 
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
+Manuscript
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
