@@ -1,4 +1,4 @@
-// src/js/game.js – FINAL MASTERPIECE: Dual-Mode Carving + Inspection
+// src/js/game.js – FINAL: Tool Wear + Accuracy Scoring + Hidden Shape System
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
@@ -22,16 +22,27 @@ export class Game {
     this.orbit = new OrbitControls(this.camera, canvas);
     this.orbit.enableDamping = true;
     this.orbit.dampingFactor = 0.05;
-    this.orbit.enableZoom = true;
 
     this.player = new PlayerController(this.camera, canvas, this);
     this.scene.add(this.player.group);
 
+    // Game state
     this.mode = 'fps'; // 'fps' or 'inspect'
     this.keys = {};
     this.chiselVisible = false;
     this.isCarving = false;
     this.carvingBlock = null;
+
+    // CRAFTSMANSHIP SYSTEMS
+    this.points = 500;
+    this.toolWear = 0;
+    this.maxToolWear = 100;
+    this.sharpenCost = 80;
+    this.carvingEfficiency = 1.0;
+
+    // Hidden target shape + scoring
+    this.targetVoxels = new Set();
+    this.carvedVoxels = new Set();
 
     this.lastTap = 0;
   }
@@ -41,10 +52,12 @@ export class Game {
     this.createFloor();
     this.createWorkshop();
     this.createChisel();
+    this.generateHiddenShape(); // ← NEW: secret target
     this.setupInput();
     this.setMode('fps');
     this.resize();
     this.hideLoading?.();
+    this.updateUI();
   }
 
   setupLighting() {
@@ -88,15 +101,105 @@ export class Game {
     this.scene.add(this.chisel);
   }
 
+  // NEW: Generate hidden target shape (e.g. a sphere)
+  generateHiddenShape() {
+    const center = this.carvingBlock.position.clone().add(new THREE.Vector3(0, 0.5, 0));
+    const radius = 0.38;
+
+    for (let x = -0.5; x <= 0.5; x += 0.0625) {
+      for (let y = 0; y <= 1; y += 0.0625) {
+        for (let z = -0.5; z <= 0.5; z += 0.0625) {
+          const worldPos = new THREE.Vector3(x, y, z).add(this.carvingBlock.position);
+          if (worldPos.distanceTo(center) <= radius) {
+            const local = new THREE.Vector3(x, y, z);
+            this.targetVoxels.add(`${local.x.toFixed(4)},${local.y.toFixed(4)},${local.z.toFixed(4)}`);
+          }
+        }
+      }
+    }
+    console.log(`Hidden shape generated: ${this.targetVoxels.size} voxels`);
+  }
+
+  // NEW: Track carved material
+  markCarvedVoxel(worldPos) {
+    const local = worldPos.clone().sub(this.carvingBlock.position);
+    const key = `${local.x.toFixed(4)},${local.y.toFixed(4)},${local.z.toFixed(4)}`;
+    this.carvedVoxels.add(key);
+    this.addToolWear(0.8);
+  }
+
+  // NEW: Tool wear system
+  addToolWear(amount = 1) {
+    this.toolWear = Math.min(this.maxToolWear, this.toolWear + amount);
+    this.updateCarvingEfficiency();
+
+    // Visual dulling
+    const ratio = this.toolWear / this.maxToolWear;
+    const blade = this.chisel.children[1];
+    if (blade) {
+      blade.material.color.setRGB(
+        THREE.MathUtils.lerp(1.0, 0.6, ratio),
+        THREE.MathUtils.lerp(1.0, 0.4, ratio),
+        THREE.MathUtils.lerp(1.0, 0.3, ratio)
+      );
+    }
+  }
+
+  updateCarvingEfficiency() {
+    const ratio = this.toolWear / this.maxToolWear;
+    this.carvingEfficiency = THREE.MathUtils.lerp(0.35, 1.0, 1 - ratio);
+  }
+
+  sharpenTool() {
+    if (this.points >= this.sharpenCost) {
+      this.points -= this.sharpenCost;
+      this.toolWear = 0;
+      this.updateCarvingEfficiency();
+      const blade = this.chisel.children[1];
+      if (blade) blade.material.color.setRGB(1, 1, 1);
+      this.showMessage('Chisel Sharpened!', 2000, '#00ff00');
+      this.updateUI();
+    } else {
+      this.showMessage('Not enough points!', 2000, '#ff4444');
+    }
+  }
+
+  // NEW: Final accuracy score
+  calculateScore() {
+    let correct = 0, overcut = 0, missed = 0;
+
+    for (let key of this.carvedVoxels) {
+      if (this.targetVoxels.has(key)) correct++;
+      else overcut++;
+    }
+    for (let key of this.targetVoxels) {
+      if (!this.carvedVoxels.has(key)) missed++;
+    }
+
+    const accuracy = correct / (correct + overcut + missed || 1);
+    const completeness = correct / this.targetVoxels.size;
+    const stylePenalty = overcut / (correct + overcut + 1);
+
+    const finalScore = Math.round(10000 * accuracy * completeness * (1 - stylePenalty * 0.6));
+
+    return {
+      score: finalScore,
+      accuracy: (accuracy * 100).toFixed(1) + '%',
+      completeness: (completeness * 100).toFixed(1) + '%',
+      overcut,
+      style: stylePenalty < 0.15 ? 'Masterful' : stylePenalty < 0.4 ? 'Elegant' : 'Bold',
+      pointsEarned: finalScore
+    };
+  }
+
   setupInput() {
-    // Keyboard
     window.addEventListener('keydown', e => {
       this.keys[e.code] = true;
-      if (e.code === 'Space') this.toggleMode();
+      if (e.code === 'Space' && !e.repeat) this.toggleMode();
+      if (e.code === 'KeyR') this.sharpenTool(); // R = sharpen
     });
     window.addEventListener('keyup', e => this.keys[e.code] = false);
 
-    // Touch gestures
     let taps = 0;
     this.canvas.addEventListener('touchstart', e => {
       if (e.touches.length === 1) {
@@ -129,12 +232,35 @@ export class Game {
     if (mode === 'fps') {
       this.canvas.requestPointerLock();
       this.chisel.visible = true;
-      this.isCarving = true;
     } else {
       document.exitPointerLock();
       this.chisel.visible = false;
-      this.isCarving = false;
     }
+    this.updateUI();
+  }
+
+  updateUI() {
+    // Simple overlay (you can replace with real UI later)
+    let ui = document.getElementById('game-ui') || document.createElement('div');
+    ui.id = 'game-ui';
+    ui.style.cssText = 'position:fixed;top:10px;left:10px;color:white;font-family:Arial;z-index:100;pointer-events:none;';
+    ui.innerHTML = `
+      Points: ${this.points} | 
+      Tool Wear: ${this.toolWear.toFixed(0)}% | 
+      Efficiency: ${(this.carvingEfficiency*100).toFixed(0)}% 
+      <br><small>Press R to sharpen (${this.sharpenCost} pts) • Space = Inspect Mode</small>
+    `;
+    document.body.appendChild(ui);
+  }
+
+  showMessage(text, duration = 2000, color = '#ffffff') {
+    let msg = document.createElement('div');
+    msg.textContent = text;
+    msg.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                         background:rgba(0,0,0,0.8);color:${color};padding:20px 40px;
+                         font-size:24px;border-radius:12px;z-index:1000;pointer-events:none;`;
+    document.body.appendChild(msg);
+    setTimeout(() => msg.remove(), duration);
   }
 
   update(delta) {
