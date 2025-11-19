@@ -1,7 +1,8 @@
-// src/js/game.js – Final Clean Version for Lenovo Gaming Laptop
+// src/js/game.js – FINAL WORKING VERSION for GitHub Pages + Lenovo
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/loaders/GLTFLoader.js';
 import { getDeltaTime } from './utils.js';
 
 export class Game {
@@ -36,7 +37,6 @@ export class Game {
   }
 
   async init() {
-    // Lights
     const ambient = new THREE.AmbientLight(0xffffff, 0.7);
     this.scene.add(ambient);
     const light = new THREE.PointLight(0xffddaa, 2.5, 50);
@@ -49,11 +49,10 @@ export class Game {
     this.setupInput();
 
     this.resize();
-    this.hideLoading?.(); // Instant hide – no Chromebook delay
+    this.hideLoading?.();
   }
 
   createWorkshop() {
-    // Floor
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(50, 50),
       new THREE.MeshStandardMaterial({ color: 0x8B4513 })
@@ -62,7 +61,6 @@ export class Game {
     floor.receiveShadow = true;
     this.scene.add(floor);
 
-    // Workbench
     const bench = new THREE.Group();
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
     const base = new THREE.Mesh(new THREE.BoxGeometry(5, 0.8, 2.5), woodMat);
@@ -73,7 +71,6 @@ export class Game {
     bench.add(base, top);
     this.scene.add(bench);
 
-    // Carving block – high-res for smooth carving
     const geo = new THREE.BoxGeometry(1, 1, 1, 48, 48, 48);
     const mat = new THREE.MeshStandardMaterial({
       color: 0xDEB887,
@@ -113,7 +110,6 @@ export class Game {
       if (this.currentMode === 'fps') this.fpsControls.lock();
     });
 
-    // Double-click or Space to toggle mode
     let lastTap = 0;
     this.canvas.addEventListener('click', () => {
       const now = Date.now();
@@ -151,97 +147,4 @@ export class Game {
       if (dist < radius) {
         const strength = 1 - (dist / radius);
         v.lerp(point, strength * 0.025);
-        pos.setXYZ(i, v.x, v.y, v.z);
-      }
-    }
-    pos.needsUpdate = true;
-    geo.computeVertexNormals();
-
-    this.carvingBlock.material.opacity = Math.min(1.0, this.carvingBlock.material.opacity + 0.003);
-  }
-
-  toggleMode() {
-    this.currentMode = this.currentMode === 'fps' ? 'inspect' : 'fps';
-    if (this.currentMode === 'fps') {
-      this.fpsControls.lock();
-      this.orbitControls.enabled = false;
-      this.chisel.visible = true;
-    } else {
-      this.fpsControls.unlock();
-      this.orbitControls.enabled = true;
-      this.chisel.visible = false;
-    }
-  }
-
-  update(delta) {
-    if (this.currentMode === 'fps') {
-      const speed = 5 * delta;
-      const dir = new THREE.Vector3();
-      if (this.keys['KeyW']) dir.z -= 1;
-      if (this.keys['KeyS']) dir.z += 1;
-      if (this.keys['KeyA']) dir.x -= 1;
-      if (this.keys['KeyD']) dir.x += 1;
-      dir.normalize().applyQuaternion(this.camera.quaternion).multiplyScalar(speed);
-      this.camera.position.add(dir);
-
-      this.player.update(delta);
-      if (this.chisel) {
-        this.chisel.position.copy(this.player.rightHand.position);
-        this.chisel.quaternion.copy(this.camera.quaternion);
-      }
-    } else {
-      this.orbitControls.update();
-    }
-  }
-
-  render() {
-    this.renderer.render(this.scene, this.camera);
-  }
-
-  loop = (t) => {
-    const delta = getDeltaTime(t);
-    this.update(delta);
-    this.render();
-    requestAnimationFrame(this.loop);
-  };
-
-  start() {
-    requestAnimationFrame(this.loop);
-  }
-
-  resize() {
-    const w = window.innerWidth, h = window.innerHeight;
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
-  }
-}
-
-class Player {
-  constructor(camera) {
-    this.camera = camera;
-    this.group = new THREE.Group();
-    this.rightHand = new THREE.Group();
-
-    const skin = new THREE.MeshStandardMaterial({ color: 0xFDBCB4 });
-    const sleeve = new THREE.MeshStandardMaterial({ color: 0x333333 });
-
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.7), sleeve);
-    arm.position.set(0.4, -0.3, -0.5);
-    arm.rotation.x = 0.3;
-    this.group.add(arm);
-
-    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.25), skin);
-    hand.position.set(0.4, -0.7, -0.7);
-    this.rightHand.add(hand);
-    this.group.add(this.rightHand);
-
-    this.group.position.set(0.2, -0.3, -0.6);
-    camera.add(this.group);
-  }
-
-  update(delta) {
-    const sway = Math.sin(Date.now() * 0.003) * 0.04;
-    this.group.rotation.z = sway;
-  }
-}
+        pos.setXYZ(i, v.x, v.y, v
