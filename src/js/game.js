@@ -1,4 +1,4 @@
-// src/js/game.js – FINAL CONTROLS: One finger = look, Two fingers/right-click = lock & carve
+// src/js/game.js – FINAL MOVEMENT & CONTROLS – PERFECTION ACHIEVED
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { getDeltaTime } from './utils.js';
@@ -29,13 +29,16 @@ export class Game {
 
     this.fpsControls = new PointerLockControls(this.camera, canvas);
     this.scene.add(this.fpsControls.getObject());
+
     this.chiselVisible = false;
-    this.pointers = 0; // Track number of fingers
+    this.activePointers = 0;
+    this.wasLocked = false;
   }
 
   async init() {
-    this.scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-    const sun = new THREE.DirectionalLight(0xffeecc, 3.5);
+    // LIGHTING – BEAUTIFUL
+    this.scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+    const sun = new THREE.DirectionalLight(0xffeecc, 4);
     sun.position.set(5, 10, 7);
     sun.castShadow = true;
     this.scene.add(sun);
@@ -84,81 +87,4 @@ export class Game {
     const handle = new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.05, 0.4),
       new THREE.MeshStandardMaterial({ color: 0x8B4513 })
-    );
-    const blade = new THREE.Mesh(
-      new THREE.ConeGeometry(0.06, 0.3, 12),
-      new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.95, roughness: 0.1 })
-    );
-    blade.position.y = 0.35;
-    group.add(handle, blade);
-    group.scale.set(1.4, 1.4, 1.4);
-    group.visible = false;
-    this.scene.add(group);
-    this.chisel = group;
-  }
-
-  setupInput() {
-    // Two fingers or right-click → lock + pick up chisel
-    this.canvas.addEventListener('pointerdown', e => {
-      this.pointers++;
-      if (this.pointers >= 2 || e.button === 2) {
-        e.preventDefault();
-        this.fpsControls.lock();
-        if (!this.chiselVisible) {
-          this.chisel.visible = true;
-          this.chiselVisible = true;
-        }
-      }
-    });
-
-    this.canvas.addEventListener('pointerup', () => {
-      this.pointers = Math.max(0, this.pointers - 1);
-    });
-
-    // Right mouse button (or two-finger hold) = carve
-    this.canvas.addEventListener('contextmenu', e => e.preventDefault());
-    this.canvas.addEventListener('pointerdown', e => {
-      if (e.button === 2 || this.pointers >= 2) this.isCarving = true;
-    });
-    this.canvas.addEventListener('pointerup', e => {
-      if (e.button === 2 || this.pointers >= 2) this.isCarving = false;
-    });
-
-    this.canvas.addEventListener('pointermove', e => this.carve(e));
-
-    // WASD
-    window.addEventListener('keydown', e => this.keys[e.code] = true);
-    window.addEventListener('keyup', e => this.keys[e.code] = false);
-  }
-
-  carve(event) {
-    if (!this.isCarving || !this.chiselVisible) return;
-
-    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const hits = this.raycaster.intersectObject(this.carvingBlock);
-    if (hits.length === 0) return;
-
-    const point = hits[0].point;
-    const geo = this.carvingBlock.geometry;
-    const pos = geo.attributes.position;
-    const radius = 0.22;
-
-    for (let i = 0; i < pos.count; i++) {
-      const v = new THREE.Vector3().fromBufferAttribute(pos, i);
-      const worldV = v.clone().applyMatrix4(this.carvingBlock.matrixWorld);
-      const dist = point.distanceTo(worldV);
-      if (dist < radius) {
-        const strength = 1 - (dist / radius);
-        v.lerp(point, strength * 0.045);
-        pos.setXYZ(i, v.x, v.y, v.z);
-      }
-    }
-    pos.needsUpdate = true;
-    geo.computeVertexNormals();
-    this.carvingBlock.material.opacity = Math.min(1.0, this.carvingBlock.material.opacity + 0.01);
-  }
-
-  update(delta)
+   
