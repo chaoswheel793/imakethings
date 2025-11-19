@@ -1,10 +1,9 @@
-// src/js/game.js – THE FINAL LEGENDARY VERSION: Full Real-Time Carving Masterpiece
+// src/js/game.js – FINAL REFINED FPS + INSPECT + INTERACTION SYSTEM
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/PointerLockControls.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
 import { PlayerController } from './player-controller.js';
 import { getDeltaTime } from './utils.js';
-import { STLExporter } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/exporters/STLExporter.js';
 
 export class Game {
   constructor(canvas) {
@@ -22,63 +21,39 @@ export class Game {
     this.pointerLock = new PointerLockControls(this.camera, canvas);
     this.orbit = new OrbitControls(this.camera, canvas);
     this.orbit.enableDamping = true;
+    this.orbit.target.set(0, 1.2, -5);
 
     this.player = new PlayerController(this.camera, canvas, this);
     this.scene.add(this.player.group);
 
-    // Game state
-    this.mode = 'fps';
+    // Game State
+    this.mode = 'fps'; // 'fps' or 'inspect'
     this.keys = {};
+    this.holdingItem = null;
     this.chiselVisible = false;
-    this.carvingBlock = null;
-
-    // Craftsmanship
-    this.points = 1000;
-    this.toolWear = 0;
-    this.maxToolWear = 100;
-    this.sharpenCost = 120;
-    this.carvingEfficiency = 1.0;
-    this.targetVoxels = new Set();
-    this.carvedVoxels = new Set();
-
-    // Carving
-    this.carveRadius = 0.08;
-    this.carveStrength = 0.12;
     this.isCarving = false;
-    this.lastCarvePos = null;
-
-    // Effects
-    this.dustParticles = null;
-    this.chiselHitSound = null;
-
-    this.exporter = new STLExporter();
+    this.carvingBlock = null;
+    this.raycaster = new THREE.Raycaster();
     this.lastTap = 0;
+
+    // Interaction
+    this.hoveredObject = null;
   }
 
   async init() {
-    this.setupAudio();
     this.setupLighting();
     this.createFloor();
     this.createWorkshop();
     this.createChisel();
-    this.createDustParticles();
-    this.generateHiddenShape();
+    this.createCarvingBlock();
     this.setupInput();
     this.setMode('fps');
     this.resize();
     this.hideLoading?.();
-    this.updateUI();
-  }
-
-  setupAudio() {
-    this.audioListener = new THREE.AudioListener();
-    this.camera.add(this.audioListener);
-    this.chiselHitSound = new THREE.Audio(this.audioListener);
-    // You'll add real sound files later — placeholder
   }
 
   setupLighting() {
-    this.scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+    this.scene.add(new THREE.AmbientLight(0xffffff, 1.6));
     const sun = new THREE.DirectionalLight(0xffeecc, 5);
     sun.position.set(8, 15, 10);
     sun.castShadow = true;
@@ -97,20 +72,6 @@ export class Game {
     bench.add(new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), wood).translateY(1));
     bench.position.z = -5;
     this.scene.add(bench);
-
-    const geo = new THREE.BoxGeometry(1, 1, 1, 64, 64, 64);
-    const mat = new THREE.MeshStandardMaterial({ 
-      color: 0xDEB887, 
-      transparent: true, 
-      opacity: 0.85,
-      roughness: 0.8
-    });
-    this.carvingBlock = new THREE.Mesh(geo, mat);
-    this.carvingBlock.position.set(0, 1.2, -5);
-    this.carvingBlock.castShadow = true;
-    bench.add(this.carvingBlock);
-
-    this.orbit.target.copy(this.carvingBlock.position);
   }
 
   createChisel() {
@@ -124,121 +85,105 @@ export class Game {
     this.scene.add(this.chisel);
   }
 
-  createDustParticles() {
-    const geometry = new THREE.BufferGeometry();
-    const positions = [];
-    const velocities = [];
-    for (let i = 0; i < 300; i++) {
-      positions.push(0, 0, 0, 0, 0, 0, 0, 0, 0);
-      velocities.push(
-        (Math.random() - 0.5) * 2,
-        Math.random() * 3 + 1,
-        (Math.random() - 0.5) * 2
-      );
-    }
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('velocity', new THREE.Float32BufferAttribute(velocities, 3));
+  createCarvingBlock() {
+    const geo = new THREE.BoxGeometry(1, 1, 1, 64, 64, 64);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xDEB887, roughness: 0.8 });
+    this.carvingBlock = new THREE.Mesh(geo, mat);
+    this.carvingBlock.position.set(0, 1.2, -5);
+    this.carvingBlock.userData.isInteractable = true;
+    this.carvingBlock.userData.type = 'block';
+    this.scene.add(this.carvingBlock);
+  }
 
-    const material = new THREE.PointsMaterial({
-      color: 0xDEB887,
-      size: 0.04,
-      transparent: true,
-      opacity: 0.8
+  setupInput() {
+    // Keyboard
+    window.addEventListener('keydown', e => {
+      this.keys[e.code] = true;
+      if (e.code === 'Space') this.toggleMode();
+      if (e.code === 'KeyE') this.interact();
+    });
+    window.addEventListener('keyup', e => this.keys[e.code] = false);
+
+    // Mouse
+    this.canvas.addEventListener('click', () => {
+      if (this.mode === 'inspect') this.setMode('fps');
+      else if (!this.holdingItem) this.interact();
     });
 
-    this.dustParticles = new THREE.Points(geometry, material);
-    this.dustParticles.visible = false;
-    this.scene.add(this.dustParticles);
-  }
-
-  generateHiddenShape() {
-    const center = this.carvingBlock.position.clone().add(new THREE.Vector3(0, 0.5, 0));
-    const radius = 0.38;
-
-    for (let x = -0.5; x <= 0.5; x += 0.05) {
-      for (let y = 0; y <= 1; y += 0.05) {
-        for (let z = -0.5; z <= 0.5; z += 0.05) {
-          const pos = new THREE.Vector3(x, y, z).add(this.carvingBlock.position);
-          if (pos.distanceTo(center) <= radius) {
-            const local = new THREE.Vector3(x, y, z);
-            this.targetVoxels.add(`${local.x.toFixed(3)},${local.y.toFixed(3)},${local.z.toFixed(3)}`);
-          }
-        }
+    // Touch Gestures
+    this.canvas.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        const now = Date.now();
+        if (now - this.lastTap < 300) this.toggleMode();
+        else this.lastTap = now;
       }
+    });
+  }
+
+  interact() {
+    const intersect = this.getIntersect();
+    if (!intersect) return;
+
+    if (!this.holdingItem && intersect.object.userData.isInteractable) {
+      this.grabItem(intersect.object);
     }
   }
 
-  performCarve(worldPos) {
-    if (!this.carvingBlock || this.toolWear >= 100) return;
+  grabItem(obj) {
+    this.holdingItem = obj;
+    this.scene.remove(obj);
+    this.player.rightHand.add(obj);
+    obj.position.set(0.2, -0.1, -0.3);
+    obj.rotation.set(0, 0, Math.PI / 2);
 
-    const localPos = worldPos.clone().sub(this.carvingBlock.position);
-    const geometry = this.carvingBlock.geometry;
-    const positionAttribute = geometry.attributes.position;
-    const strength = this.carveStrength * this.carvingEfficiency;
+    if (obj.userData.type === 'block') {
+      this.chiselVisible = true;
+      this.chisel.visible = true;
+    }
+  }
 
-    let changed = false;
-    for (let i = 0; i < positionAttribute.count; i++) {
-      const vx = positionAttribute.getX(i);
-      const vy = positionAttribute.getY(i);
-      const vz = positionAttribute.getZ(i);
-      const vertWorld = new THREE.Vector3(vx, vy, vz).applyMatrix4(this.carvingBlock.matrixWorld);
-      const dist = vertWorld.distanceTo(worldPos);
+  dropItem() {
+    if (!this.holdingItem) return;
+    this.player.rightHand.remove(this.holdingItem);
+    this.scene.add(this.holdingItem);
+    this.holdingItem.position.copy(this.player.group.position).add(new THREE.Vector3(0, 1.6, -2));
+    this.holdingItem = null;
+    this.chiselVisible = false;
+    this.chisel.visible = false;
+  }
 
-      if (dist < this.carveRadius) {
-        const push = strength * (1 - dist / this.carveRadius);
-        positionAttribute.setXYZ(i,
-          vx - localPos.x * push * 0.1,
-          vy - localPos.y * push * 0.1,
-          vz - localPos.z * push * 0.1
-        );
-        changed = true;
+  getIntersect() {
+    this.raycaster.setFromCamera(new THREE.Vector2(), this.camera);
+    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+    return intersects[0] || null;
+  }
+
+  toggleMode() {
+    this.setMode(this.mode === 'fps' ? 'inspect' : 'fps');
+  }
+
+  setMode(mode) {
+    this.mode = mode;
+    this.pointerLock.enabled = mode === 'fps';
+    this.orbit.enabled = mode === 'inspect';
+
+    if (mode === 'fps') {
+      this.canvas.requestPointerLock();
+      if (this.holdingItem?.userData.type === 'block') {
+        this.chiselVisible = true;
+        this.chisel.visible = true;
       }
-    }
-
-    if (changed) {
-      positionAttribute.needsUpdate = true;
-      geometry.computeVertexNormals();
-      this.markCarvedVoxel(worldPos);
-      this.spawnDust(worldPos);
-      this.addToolWear(0.6);
-      this.updateUI();
+    } else {
+      document.exitPointerLock();
+      this.dropItem();
     }
   }
-
-  spawnDust(pos) {
-    if (!this.dustParticles) return;
-    const positions = this.dustParticles.geometry.attributes.position.array;
-    for (let i = 0; i < positions.length; i += 3) {
-      positions[i] = pos.x + (Math.random() - 0.5) * 0.1;
-      positions[i + 1] = pos.y + Math.random() * 0.1;
-      positions[i + 2] = pos.z + (Math.random() - 0.5) * 0.1;
-    }
-    this.dustParticles.geometry.attributes.position.needsUpdate = true;
-    this.dustParticles.visible = true;
-    setTimeout(() => this.dustParticles.visible = false, 800);
-  }
-
-  // ... (all previous methods: tool wear, scoring, UI, etc. remain exactly as in last version)
 
   update(delta) {
     if (this.mode === 'fps') {
       this.player.update(delta, this.keys);
 
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-      const intersects = raycaster.intersectObject(this.carvingBlock);
-
-      if (intersects.length > 0 && this.isCarving && this.chisel.visible) {
-        const point = intersects[0].point;
-        if (!this.lastCarvePos || point.distanceTo(this.lastCarvePos) > 0.02) {
-          this.performCarve(point);
-          this.lastCarvePos = point;
-        }
-      } else {
-        this.lastCarvePos = null;
-      }
-
-      if (this.chisel.visible) {
+      if (this.chiselVisible) {
         const dir = new THREE.Vector3();
         this.camera.getWorldDirection(dir);
         this.chisel.position.copy(this.camera.position).addScaledVector(dir, 0.7).sub(new THREE.Vector3(0, 0.4, 0));
@@ -248,15 +193,18 @@ export class Game {
     }
   }
 
-  exportSTL() {
-    const result = this.exporter.parse(this.carvingBlock);
-    const blob = new Blob([result], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'my_masterpiece.stl';
-    link.click();
-    this.showMessage('Masterpiece Exported!', 3000, '#00ff00');
+  render() { this.renderer.render(this.scene, this.camera); }
+  loop = (t) => {
+    const delta = getDeltaTime(t);
+    this.update(delta);
+    this.render();
+    requestAnimationFrame(this.loop);
+  };
+  start() { requestAnimationFrame(this.loop); }
+  resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
   }
-
-  // ... rest of methods (sharpenTool, calculateScore, etc.) unchanged from previous
 }
