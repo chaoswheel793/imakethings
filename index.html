@@ -2,36 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>I Make Things</title>
-  <meta name="description" content="3D wood carving workshop – carve with your hands" />
-  
-  <!-- PWA manifest -->
+  <meta name="description" content="Craft anything with your hands. Turn virtual creations into real products." />
+  <meta name="theme-color" content="#ff9900" />
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#2c1810" />
-  <link rel="icon" href="data:," />
-
+  <link rel="icon" type="image/x-icon" href="assets/images/favicon.ico" />
+  <link rel="apple-touch-icon" href="assets/images/icon-192.png" />
   <link rel="stylesheet" href="css/style.css" />
-
-  <!-- IMPORT MAP – FIXES BARE SPECIFIER ERROR -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
-      }
-    }
-  </script>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-
-  <!-- Loading spinner -->
   <div id="loading">
-    <div class="spinner"></div>
+    <h1>I Make Things</h1>
     <p>Loading workshop...</p>
+    <div class="spinner"></div>
   </div>
 
-  <script type="module" src="src/js/main.js"></script>
+  <canvas id="canvas" tabindex="0"></canvas>
+
+  <script type="module">
+    import { Game } from "./src/js/game.js";
+    window.addEventListener("load", () => {
+      const game = new Game();
+      game.init();
+    });
+  </script>
 </body>
 </html>
