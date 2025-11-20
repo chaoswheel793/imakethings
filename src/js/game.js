@@ -1,5 +1,4 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js';
-import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/controls/PointerLockControls.js';
 
 import { Player } from './Player.js';
 import { createChisel } from './Tools.js';
@@ -21,16 +20,23 @@ export class Game {
     this.clock = new THREE.Clock();
     this.keys = {};
     this.interactables = [];
+    this.isPointerLocked = false;
 
-    this.player = new Player(this.camera, this.scene);
+    // Custom FPS setup
+    this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    this.pitchObject = new THREE.Object3D();
+    this.yawObject = new THREE.Object3D();
+    this.yawObject.add(this.pitchObject);
+    this.pitchObject.add(this.camera);
 
-    this.controls = new PointerLockControls(this.camera, document.body);
-    this.scene.add(this.controls.getObject());
+    this.player = new Player(this.pitchObject, this.scene); // Pass pitchObject as root for look
+    this.scene.add(this.yawObject);
 
     this.setupWorld();
     this.chisel = createChisel(this.scene);
     this.interactables.push(this.chisel);
 
+    this.setupCustomControls();
     this.setupInput();
     this.fadeOutLoading();
 
@@ -57,9 +63,55 @@ export class Game {
     this.scene.add(floor);
   }
 
+  setupCustomControls() {
+    // Instructions overlay
+    const instructions = document.createElement('div');
+    instructions.id = 'instructions';
+    instructions.style.position = 'absolute';
+    instructions.style.top = '10px';
+    instructions.style.left = '50%';
+    instructions.style.transform = 'translateX(-50%)';
+    instructions.style.color = 'white';
+    instructions.style.background = 'rgba(0,0,0,0.5)';
+    instructions.style.padding = '10px';
+    instructions.style.borderRadius = '5px';
+    instructions.style.zIndex = '100';
+    instructions.innerHTML = 'Click to play: WASD move, Mouse look, Click grab, E drop';
+    document.body.appendChild(instructions);
+
+    // Pointer lock
+    const toggleLock = () => {
+      if (!this.isPointerLocked) {
+        document.body.requestPointerLock();
+      } else {
+        document.exitPointerLock();
+      }
+    };
+
+    document.addEventListener('click', toggleLock);
+    document.addEventListener('pointerlockchange', () => {
+      this.isPointerLocked = document.pointerLockElement === document.body;
+      instructions.style.display = this.isPointerLocked ? 'none' : 'block';
+      document.body.style.cursor = this.isPointerLocked ? 'none' : 'grab';
+    });
+
+    // Mouse look
+    document.addEventListener('mousemove', (e) => {
+      if (!this.isPointerLocked) return;
+      const movementX = e.movementX || 0;
+      const movementY = e.movementY || 0;
+      this.euler.setFromQuaternion(this.camera.quaternion);
+      this.euler.y -= movementX * 0.002;
+      this.euler.x -= movementY * 0.002;
+      this.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.euler.x));
+      this.yawObject.rotation.y = this.euler.y;
+      this.pitchObject.rotation.x = this.euler.x;
+    });
+  }
+
   setupInput() {
     document.addEventListener('keydown', e => this.keys[e.code] = true);
-    document.addEventListener('keyup',   e => this.keys[e.code] = false);
+    document.addEventListener('keyup', e => this.keys[e.code] = false);
 
     const grab = () => this.player.tryGrab(this.interactables);
     document.addEventListener('pointerdown', e => {
@@ -69,10 +121,6 @@ export class Game {
     document.addEventListener('keydown', e => {
       if (e.code === 'KeyE' || e.code === 'Space') this.player.drop();
     });
-
-    this.controls.addEventListener('lock',   () => document.body.style.cursor = 'none');
-    this.controls.addEventListener('unlock', () => document.body.style.cursor = 'grab');
-    document.addEventListener('click', () => this.controls.lock());
   }
 
   fadeOutLoading() {
