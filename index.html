@@ -7,8 +7,6 @@
   <meta name="description" content="Craft anything with your hands. Turn virtual creations into real products." />
   <meta name="theme-color" content="#ff9900" />
   <link rel="manifest" href="manifest.json" />
-  <link rel="icon" type="image/x-icon" href="assets/images/favicon.ico" />
-  <link rel="apple-touch-icon" href="assets/images/icon-192.png" />
   <link rel="stylesheet" href="css/style.css" />
   <script type="importmap">
   {
@@ -20,20 +18,20 @@
   </script>
 </head>
 <body>
+  <div id="instructions">
+    <h2>Click to enter workshop</h2>
+    <p>WASD = move | Mouse = look | Click = grab | E = drop | Space = jump</p>
+  </div>
   <div id="loading">
     <h1>I Make Things</h1>
-    <p>Loading workshop...</p>
     <div class="spinner"></div>
   </div>
-
-  <canvas id="canvas" tabindex="0"></canvas>
+  <canvas id="canvas"></canvas>
 
   <script type="module">
     import { Game } from "./src/js/game.js";
-    window.addEventListener("load", () => {
-      const game = new Game();
-      game.init();
-    });
+    const game = new Game();
+    game.init();
   </script>
 </body>
 </html>
