@@ -6,7 +6,7 @@ export class Player {
     this.holding = null;
     this.canGrab = true;
 
-    // Arms – visible, Metroid Prime relaxed pose
+    // Visible arms
     this.arms = new THREE.Group();
     this.camera.add(this.arms);
 
@@ -19,7 +19,6 @@ export class Player {
     this.rightArm = new THREE.Mesh(armGeo, mat);
     this.rightHand = new THREE.Mesh(handGeo, mat);
 
-    // Positions for visibility
     this.leftArm.position.set(-0.4, -0.7, -0.6);
     this.leftHand.position.set(-0.4, -1.2, -0.6);
     this.rightArm.position.set(0.4, -0.7, -0.6);
@@ -30,7 +29,7 @@ export class Player {
 
     this.arms.add(this.leftArm, this.leftHand, this.rightArm, this.rightHand);
 
-    // Grab point
+    // Grab point in right hand
     this.grabPoint = new THREE.Object3D();
     this.grabPoint.position.set(0.4, -1.1, -0.6);
     this.camera.add(this.grabPoint);
@@ -39,30 +38,30 @@ export class Player {
   }
 
   update(delta) {
-    // Idle bob
     const time = performance.now() * 0.001;
     this.arms.position.y = Math.sin(time * 2) * 0.03 - 0.05;
   }
 
   tryGrab(objects) {
     if (!this.canGrab || this.holding) return;
+
     this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
     const hits = this.raycaster.intersectObjects(objects, true);
+
     if (hits.length > 0 && hits[0].distance < 3.5) {
       let obj = hits[0].object;
       while (obj && !obj.userData?.isInteractable) {
         obj = obj.parent;
       }
-      if (obj?.userData?.isInteractable) {
+
+      if (obj && obj.userData?.isInteractable) {
         this.holding = obj;
         obj.oldParent = obj.parent;
         this.grabPoint.add(obj);
         obj.position.set(0, 0, 0);
         obj.rotation.set(0, Math.PI, 0);
         this.canGrab = false;
-        setTimeout(() => {
-          this.canGrab = true;
-        }, 300);
+        setTimeout(() => { this.canGrab = true; }, 300);
       }
     }
   }
