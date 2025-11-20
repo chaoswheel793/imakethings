@@ -6,7 +6,6 @@ export class Player {
     this.holding = null;
     this.canGrab = true;
 
-    // Visible arms
     this.arms = new THREE.Group();
     this.camera.add(this.arms);
 
@@ -29,7 +28,6 @@ export class Player {
 
     this.arms.add(this.leftArm, this.leftHand, this.rightArm, this.rightHand);
 
-    // Grab point in right hand
     this.grabPoint = new THREE.Object3D();
     this.grabPoint.position.set(0.4, -1.1, -0.6);
     this.camera.add(this.grabPoint);
@@ -53,15 +51,16 @@ export class Player {
       while (obj && !obj.userData?.isInteractable) {
         obj = obj.parent;
       }
-
-      if (obj && obj.userData?.isInteractable) {
+      if (obj && obj.userData.isInteractable) {
         this.holding = obj;
         obj.oldParent = obj.parent;
         this.grabPoint.add(obj);
         obj.position.set(0, 0, 0);
         obj.rotation.set(0, Math.PI, 0);
         this.canGrab = false;
-        setTimeout(() => { this.canGrab = true; }, 300);
+        setTimeout(() => {
+          this.canGrab = true;
+        }, 300);
       }
     }
   }
