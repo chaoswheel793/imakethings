@@ -46,22 +46,24 @@ export class Player {
     this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
     const hits = this.raycaster.intersectObjects(objects, true);
 
-    if (hits.length > 0 && hits[0].distance < 3.5) {
-      let obj = hits[0].object;
-      while (obj && !obj.userData?.isInteractable) {
-        obj = obj.parent;
-      }
-      if (obj && obj.userData.isInteractable) {
-        this.holding = obj;
-        obj.oldParent = obj.parent;
-        this.grabPoint.add(obj);
-        obj.position.set(0, 0, 0);
-        obj.rotation.set(0, Math.PI, 0);
-        this.canGrab = false;
-        setTimeout(() => {
-          this.canGrab = true;
-        }, 300);
-      }
+    if (hits.length === 0 || hits[0].distance > 3.5) return;
+
+    const hit = hits[0];
+    let obj = hit.object;
+
+    // Simple safe climb up parent chain (max 10 levels)
+    for (let i = 0; i < 10 && obj && !obj.userData?.isInteractable; i++) {
+      obj = obj.parent;
+    }
+
+    if (obj && obj.userData.isInteractable) {
+      this.holding = obj;
+      obj.oldParent = obj.parent;
+      this.grabPoint.add(obj);
+      obj.position.set(0, 0, 0);
+      obj.rotation.set(0, Math.PI, 0);
+      this.canGrab = false;
+      setTimeout(() => { this.canGrab = true; }, 300);
     }
   }
 
