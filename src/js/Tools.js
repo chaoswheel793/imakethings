@@ -17,7 +17,7 @@ export function createChisel(scene) {
 
   chisel.add(handle, blade);
   chisel.scale.set(1.5, 1.5, 1.5);
-  chisel.position.set(0, 0.8, -1.5)
+  chisel.position.set(0, 0.8, -1.5);
   chisel.userData = { isInteractable: true, toolType: "chisel" };
 
   scene.add(chisel);
