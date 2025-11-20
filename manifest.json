@@ -1,15 +1,14 @@
 {
   "name": "I Make Things",
-  ",
-  "short_name": "IMakeThings",
-  "description": "Carve, sculpt, build — then get the real thing shipped to you.",
+  "short_name": "IMT",
+  "description": "Virtual workshop – craft anything, make it real",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
-  "orientation": "portrait-primary",
+  "background_color": "#0f0a05",
+  "theme_color": "#ff9900",
+  "orientation": "any",
   "icons": [
-    { "src": "/assets/images/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/assets/images/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "assets/images/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/images/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
