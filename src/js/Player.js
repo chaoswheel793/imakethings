@@ -1,8 +1,8 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js';
 
 export class Player {
-  constructor(camera, scene) {
-    this.camera = camera;
+  constructor(root, scene) {
+    this.root = root; // Now uses yaw/pitch object for movement
     this.scene = scene;
     this.velocity = new THREE.Vector3();
     this.direction = new THREE.Vector3();
@@ -12,12 +12,8 @@ export class Player {
     this.canGrab = true;
     this.grabDistance = 2.2;
 
-    this.root = new THREE.Group();
-    this.scene.add(this.root);
-    this.root.add(camera);
-
     this.hands = new THREE.Group();
-    this.camera.add(this.hands);
+    this.root.add(this.hands); // Hands on root (yaw/pitch)
 
     const armGeo = new THREE.CylinderGeometry(0.04, 0.06, 0.6, 8);
     const handGeo = new THREE.SphereGeometry(0.08, 12, 8);
@@ -40,9 +36,10 @@ export class Player {
 
     this.grabPoint = new THREE.Object3D();
     this.grabPoint.position.set(0.25, -0.6, -0.5);
-    this.camera.add(this.grabPoint);
+    this.root.add(this.grabPoint); // Grab on root
 
     this.raycaster = new THREE.Raycaster();
+    this.camera = root.getObjectByName ? root.getObjectByName('camera') : root.children.find(c => c.type === 'PerspectiveCamera'); // Fallback to camera
   }
 
   update(delta) {
@@ -55,6 +52,9 @@ export class Player {
       this.root.translateX(this.direction.x * speed);
       this.root.translateZ(this.direction.z * speed);
     }
+
+    // Lock y height
+    this.root.position.y = 1.6;
   }
 
   tryGrab(interactables) {
