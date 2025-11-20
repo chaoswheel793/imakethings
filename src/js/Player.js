@@ -71,6 +71,6 @@ export class Player {
       this.camera.position.y - 1,
       this.camera.position.z - 2
     );
+       this.holding.oldParent.add(this.holding);
+    this.holding.position.set(0, 0.9, -2);  // Always drop in front of start position
     this.holding = null;
-  }
-}
